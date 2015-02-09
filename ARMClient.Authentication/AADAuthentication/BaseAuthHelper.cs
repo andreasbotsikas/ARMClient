@@ -152,21 +152,27 @@ namespace ARMClient.Authentication.AADAuthentication
         {
             if (!String.IsNullOrEmpty(cacheInfo.RefreshToken))
             {
+                bool reAcquireTokens = false;
                 try
                 {
                     return await GetAuthorizationResultByRefreshToken(tokenCache, cacheInfo);
                 }
                 catch (AdalServiceException ex)
                 {
-                    if (ex.Message.IndexOf("The provided access grant is expired or revoked") > 0)
+                    if (ex.Message.IndexOf("The provided access grant is expired or revoked", StringComparison.OrdinalIgnoreCase) < 0)
                     {
-                        AcquireTokens().Wait();
-                        cacheInfo = GetToken(cacheInfo.TenantId, cacheInfo.Resource).Result;
-                        tokenCache.Clone(this.TokenStorage.GetCache());
-                        return cacheInfo;
+                        throw;
                     }
 
-                    throw;
+                    reAcquireTokens = true;
+                }
+
+                if (reAcquireTokens)
+                {
+                    await AcquireTokens();
+                    cacheInfo = await GetToken(cacheInfo.TenantId, cacheInfo.Resource);
+                    tokenCache.Clone(this.TokenStorage.GetCache());
+                    return cacheInfo;
                 }
             }
             else if (!String.IsNullOrEmpty(cacheInfo.AppId) && !String.IsNullOrEmpty(cacheInfo.AppKey))
